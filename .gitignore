@@ -1,0 +1,18 @@
+# venvs
+.venv/
+venv/
+ENV/
+
+# python cache
+__pycache__/
+*.pyc
+
+# streamlit secrets (NEVER COMMIT)
+.streamlit/secrets.toml
+
+# env files
+.env
+.env.*
+
+# macOS
+.DS_Store
