@@ -3,8 +3,8 @@ import pandas as pd
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from app.auth import require_login, logout_button
-from app.db import pg_conn
+from auth import require_login, logout_button
+from db import pg_conn
 
 
 

@@ -6,8 +6,8 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from app.auth import require_login, logout_button
-from app.db import pg_conn
+from auth import require_login, logout_button
+from db import pg_conn
 
 ET = ZoneInfo("America/New_York")
 
