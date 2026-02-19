@@ -11,7 +11,7 @@ from db import pg_conn
 
 ET = ZoneInfo("America/New_York")
 
-st.set_page_config(page_title="Market Alerts", layout="wide")
+st.set_page_config(page_title="open market screanner - all of the stocks - all prices", layout="wide")
 require_login()
 
 st.title("🔔 Page 3 — RTH Alerts (DB-backed)")
@@ -45,7 +45,7 @@ with pg_conn() as con:
             a.delta_shares,
             a.window_min,
             a.price,
-            f.market_cap
+            f.market_cap_yf
         from rth_alerts a
         left join ticker_fundamentals f
           on f.ticker = a.ticker
@@ -55,7 +55,7 @@ with pg_conn() as con:
     """, con, params=[trade_date, limit])
 
 if mcap_only and not alerts.empty:
-    alerts = alerts[(alerts["market_cap"].notna()) & (alerts["market_cap"] < 100_000_000)]
+    alerts = alerts[(alerts["market_cap_yf"].notna()) & (alerts["market_cap_yf"] < 150_000_000)]
 
 st.subheader("Alerts (today)")
 if alerts.empty:
