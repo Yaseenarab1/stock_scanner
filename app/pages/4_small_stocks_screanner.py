@@ -25,6 +25,7 @@ with st.sidebar:
 
 with pg_conn() as con:
     df = pd.read_sql("""
+      set timezone = 'America/New_York';
       select a.first_seen_ts_et,
              a.ticker,
              a.price,
