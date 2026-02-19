@@ -34,7 +34,7 @@ def play_beep_once(nonce: str, wav_b64: str):
 with st.sidebar:
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
     limit = st.slider("Rows", 50, 500, 250, 50)
-    mcap_only = st.checkbox("Only market cap < 100M", value=False)
+    mcap_only = st.checkbox("Only market cap < 150M", value=False)
 
 with pg_conn() as con:
     alerts = pd.read_sql("""
@@ -45,7 +45,7 @@ with pg_conn() as con:
             a.delta_shares,
             a.window_min,
             a.price,
-            f.market_cap_yf
+            f.market_cap
         from rth_alerts a
         left join ticker_fundamentals f
           on f.ticker = a.ticker
@@ -55,7 +55,7 @@ with pg_conn() as con:
     """, con, params=[trade_date, limit])
 
 if mcap_only and not alerts.empty:
-    alerts = alerts[(alerts["market_cap_yf"].notna()) & (alerts["market_cap_yf"] < 150_000_000)]
+    alerts = alerts[(alerts["market_cap"].notna()) & (alerts["market_cap"] < 150_000_000)]
 
 st.subheader("Alerts (today)")
 if alerts.empty:

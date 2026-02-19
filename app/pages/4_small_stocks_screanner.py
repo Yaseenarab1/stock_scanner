@@ -21,7 +21,7 @@ trade_date = now.date()
 with st.sidebar:
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
     limit = st.slider("Rows", 50, 500, 250, 50)
-    mcap_only = st.checkbox("Only market cap < 100M (Yahoo)", value=False)
+    mcap_only = st.checkbox("Only market cap < 150M (Yahoo)", value=False)
 
 with pg_conn() as con:
     df = pd.read_sql("""
@@ -31,7 +31,7 @@ with pg_conn() as con:
              a.delta10_shares,
              a.target_shares,
              a.reason,
-             f.market_cap_yf
+             f.market_cap
       from low_price_alerts a
       left join ticker_fundamentals f on f.ticker = a.ticker
       where a.trade_date=%s
@@ -40,7 +40,7 @@ with pg_conn() as con:
     """, con, params=[trade_date, limit])
 
 if mcap_only and not df.empty:
-    df = df[(df["market_cap_yf"].notna()) & (df["market_cap_yf"] < 150_000_000)]
+    df = df[(df["market_cap"].notna()) & (df["market_cap"] < 150_000_000)]
 
 st.subheader("Low Price Alerts (today)")
 if df.empty:
