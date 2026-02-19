@@ -38,9 +38,8 @@ with st.sidebar:
 
 with pg_conn() as con:
     alerts = pd.read_sql("""
-        set timezone = 'America/New_York';
         select
-            a.first_seen_ts_et as "When",
+            (a.first_seen_ts_et at time zone 'America/New_York') as "When",
             a.ticker,
             a.reason,
             a.delta_shares,
