@@ -35,7 +35,7 @@ with st.sidebar:
 
     st.subheader("Global filters")
     show_only_10m = st.checkbox("Show only 10-minute alerts", value=True)
-    mcap_filter = st.checkbox("Only market cap < 100M", value=False)
+    mcap_filter = st.checkbox("Only market cap < 150M", value=False)
 
     st.subheader("Add ticker (manual)")
     new_ticker = st.text_input("Ticker", value="", placeholder="e.g. NVDA").strip().upper()
@@ -166,7 +166,7 @@ with pg_conn() as con:
     tenm = pd.read_sql(alerts_sql, con, params=params)
 
 if mcap_filter and not tenm.empty:
-    tenm = tenm[(tenm["market_cap"].notna()) & (tenm["market_cap"] < 100_000_000)]
+    tenm = tenm[(tenm["market_cap"].notna()) & (tenm["market_cap"] < 150_000_000)]
 
 st.subheader("🌍 Global Alerts (today)")
 if tenm.empty:
