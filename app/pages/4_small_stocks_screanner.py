@@ -49,6 +49,5 @@ else:
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 st.caption("Auto-refreshing…")
-con.execute("delete from low_price_alerts where trade_date < %s", (today,))
 time.sleep(int(refresh))
 st.rerun()
