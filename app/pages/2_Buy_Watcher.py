@@ -136,7 +136,7 @@ with pg_conn() as con:
     if show_only_10m:
         alerts_sql = """
           select a.ticker,
-                
+                 (a.first_seen_ts_et at time zone 'America/New_York') as when_ts,
                  a.delta_shares,
                  a.window_min,
                  a.price,
@@ -145,13 +145,13 @@ with pg_conn() as con:
           left join ticker_fundamentals f on f.ticker = a.ticker
           where a.trade_date = %s
             and a.window_min = 10
-          order by When desc
+          order by when_ts desc
         """
         params = [trade_date]
     else:
         alerts_sql = """
           select a.ticker,
-                  (a.first_seen_ts_et at time zone 'America/New_York') as "When",,
+                 (a.first_seen_ts_et at time zone 'America/New_York') as when_ts,
                  a.delta_shares,
                  a.window_min,
                  a.price,
@@ -159,7 +159,7 @@ with pg_conn() as con:
           from rth_alerts a
           left join ticker_fundamentals f on f.ticker = a.ticker
           where a.trade_date = %s
-          order by When desc
+          order by when_ts desc
         """
         params = [trade_date]
 
