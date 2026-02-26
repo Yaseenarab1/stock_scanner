@@ -184,10 +184,17 @@ else:
     with pg_conn() as con:
         buys = pd.read_sql(
             """
-            select ts_et, ticker, price, rsi, boll_lower, pattern, details
+            select
+              (ts_et at time zone 'America/New_York') as when_ts,
+              ticker,
+              price,
+              rsi,
+              boll_lower,
+              pattern,
+              details
             from buy_signals
             where trade_date=%s and ticker = any(%s)
-            order by ts_et desc
+            order by when_ts desc
             limit 300
             """,
             con,
