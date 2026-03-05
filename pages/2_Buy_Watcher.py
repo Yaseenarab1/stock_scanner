@@ -30,6 +30,11 @@ with st.sidebar:
 
     st.subheader("Add ticker to *my* watchlist")
     new_ticker = st.text_input("Ticker", value="", placeholder="e.g. NVDA").strip().upper()
+    
+    st.subheader("Filters")
+    min_mcap_m = st.number_input("Min market cap ($M)", min_value=0, max_value=50000, value=150, step=50)
+    min_mcap = int(min_mcap_m) * 1_000_000
+    
     if st.button("➕ Add"):
         if new_ticker and email:
             conn.query(
@@ -84,16 +89,21 @@ else:
 
     ticker_params = {f"t{i}": t for i, t in enumerate(tickers)}
     in_clause = ", ".join([f":t{i}" for i in range(len(tickers))])
-    
+
     state = conn.query(
         f"""
-        select trade_date, ticker, closed_minute_et, rsi14, boll_lower, pattern, boll_touch, price, updated_at
-        from public.p2_ticker_state
-        where trade_date = :d
-          and upper(ticker) in ({in_clause})
-        order by updated_at desc
+        select s.trade_date, s.ticker, s.closed_minute_et, s.rsi14, s.boll_lower, s.pattern,
+               s.boll_touch, s.price, s.updated_at,
+               f.market_cap
+        from public.p2_ticker_state s
+        join public.ticker_fundamentals f
+          on upper(f.ticker) = upper(s.ticker)
+        where s.trade_date = :d
+          and upper(s.ticker) in ({in_clause})
+          and f.market_cap >= :min_mcap
+        order by s.updated_at desc
         """,
-        params={"d": trade_date, **ticker_params},
+        params={"d": trade_date, "min_mcap": min_mcap, **ticker_params},
         ttl="5s"
     )
 
