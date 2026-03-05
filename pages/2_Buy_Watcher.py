@@ -80,17 +80,20 @@ st.subheader("📈 Latest computed indicators (for my tickers)")
 if watch.empty:
     st.info("Add tickers to see indicator state.")
 else:
-    tickers = watch["ticker"].tolist()
-    placeholders = ", ".join([f"'{t}'" for t in tickers])
+    tickers = [t.strip().upper() for t in watch["ticker"].tolist() if t]
+
+    ticker_params = {f"t{i}": t for i, t in enumerate(tickers)}
+    in_clause = ", ".join([f":t{i}" for i in range(len(tickers))])
+    
     state = conn.query(
         f"""
         select trade_date, ticker, closed_minute_et, rsi14, boll_lower, pattern, boll_touch, price, updated_at
         from public.p2_ticker_state
         where trade_date = :d
-          and ticker in ({placeholders})
+          and upper(ticker) in ({in_clause})
         order by updated_at desc
         """,
-        params={"d": trade_date},
+        params={"d": trade_date, **ticker_params},
         ttl="5s"
     )
 
