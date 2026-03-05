@@ -167,6 +167,7 @@ with pg_conn() as con:
 
 if mcap_filter and not tenm.empty:
     tenm = tenm[(tenm["market_cap"].notna()) & (tenm["market_cap"] < 150_000_000)]
+    tickers_all = sorted(set(wl["ticker"].tolist()) | set(tenm["ticker"].tolist()))
 
 st.subheader("🌍 Global Alerts (today)")
 if tenm.empty:
