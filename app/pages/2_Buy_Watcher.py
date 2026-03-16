@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from auth import require_login, logout_button
+from db import pg_conn
 
 import numpy as np
 import plotly.graph_objects as go
@@ -32,6 +34,8 @@ client = RESTClient(st.secrets["POLYGON_API_KEY"])
 # -----------------------------
 with st.sidebar:
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
+    if st.button("👤 Profile / Notifications"):
+        st.switch_page("app/pages/9_Profile.py")
 
     st.subheader("Global filters")
     show_only_10m = st.checkbox("Show only 10-minute alerts", value=True)
