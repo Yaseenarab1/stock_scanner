@@ -23,6 +23,8 @@ trade_date = now.date()
 
 with st.sidebar:
     st.write(f"Trade date: **{trade_date}**")
+    if st.button("👤 Profile / Notifications"):
+    st.switch_page("app/pages/9_Profile.py")
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
 
 user_id = st.session_state.auth_user["id"]
