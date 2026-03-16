@@ -1,6 +1,6 @@
 import streamlit as st
-from app.auth import require_login, logout_button
-from app.db import pg_conn
+from auth import require_login, logout_button
+from db import pg_conn
 
 
 st.set_page_config(page_title="Profile", layout="wide")
