@@ -100,5 +100,5 @@ if new_alerts_enabled != alerts_enabled or (
 
 st.divider()
 if st.button("Open Auto-trade (Webull) settings"):
-    st.switch_page("app/pages/10_Auto_Trade.py")
+    st.switch_page("./10_Auto_Trade.py")
 
