@@ -38,22 +38,29 @@ st.write(f"Signed in as: **{email}**")
 
 with pg_conn() as con:
     con.execute(
+    """
+    create table if not exists public.user_auto_trade_settings (
+      user_id uuid primary key references auth.users (id) on delete cascade,
+      enabled boolean not null default false,
+      budget_usd numeric(18,2) not null default 100,
+      stop_loss_pct numeric(10,4) not null default 5,
+      take_profit_pct numeric(10,4) not null default 10,
+      max_trades_per_day int not null default 1,
+      eod_closeout boolean not null default true,
+      webull_account_id text,
+      app_key_cipher text,
+      app_secret_cipher text,
+      allowed_tickers text[],
+      trades_done_today int not null default 0,
+      last_trade_date date,
+      updated_at timestamptz not null default now()
+    )
+    """
+    )
+    con.execute(
         """
-        create table if not exists public.user_auto_trade_settings (
-          user_id uuid primary key references auth.users (id) on delete cascade,
-          enabled boolean not null default false,
-          budget_usd numeric(18,2) not null default 100,
-          stop_loss_pct numeric(10,4) not null default 5,
-          take_profit_pct numeric(10,4) not null default 10,
-          max_trades_per_day int not null default 1,
-          eod_closeout boolean not null default true,
-          webull_account_id text,
-          app_key_cipher text,
-          app_secret_cipher text,
-          trades_done_today int not null default 0,
-          last_trade_date date,
-          updated_at timestamptz not null default now()
-        )
+        alter table public.user_auto_trade_settings
+        add column if not exists allowed_tickers text[]
         """
     )
     con.execute(
@@ -110,17 +117,17 @@ with pg_conn() as con:
     row = con.execute(
         """
         select enabled, budget_usd, stop_loss_pct, take_profit_pct, max_trades_per_day, eod_closeout,
-               webull_account_id,
-               (app_key_cipher is not null and length(trim(app_key_cipher)) > 0) as has_key,
-               (app_secret_cipher is not null and length(trim(app_secret_cipher)) > 0) as has_secret,
-               trades_done_today, last_trade_date
+        webull_account_id, (app_key_cipher is not null and length(trim(app_key_cipher)) > 0) as has_key,
+         (app_secret_cipher is not null and length(trim(app_secret_cipher)) > 0) as has_secret,
+        allowed_tickers, trades_done_today, last_trade_date
         from public.user_auto_trade_settings
         where user_id = %s
         """,
         (user_id,),
     ).fetchone()
 
-enabled, budget, sl, tp, maxd, eod, stored_acct, has_key, has_secret, tdone, ltd = row
+enabled, budget, sl, tp, maxd, eod, stored_acct, has_key, has_secret, allowed_tickers_db, tdone, ltd = row
+
 
 st.subheader("Trading limits")
 en = st.toggle("Enable auto-trade", value=bool(enabled))
@@ -129,6 +136,12 @@ sl_pct = st.number_input("Stop loss % (below entry)", min_value=0.1, max_value=9
 tp_pct = st.number_input("Take profit % (above entry)", min_value=0.1, max_value=500.0, value=float(tp), step=0.5)
 max_trades = st.number_input("Max completed buy+sell cycles per day", min_value=1, max_value=50, value=int(maxd))
 eod_closeout = st.toggle("Sell at end of day (≈ 3:55 PM ET) if still open", value=bool(eod))
+
+allowed_tickers_text = st.text_input(
+    "Only trade these tickers (comma-separated, optional)",
+    value=", ".join(allowed_tickers_db or []),
+    placeholder="e.g. TSLA, NVDA, AMD",
+)
 
 st.subheader("Webull API credentials")
 st.caption("Stored **encrypted** in Postgres. Leave blank to keep existing values.")
@@ -146,6 +159,7 @@ if has_secret:
     st.info("App secret on file (encrypted). Enter a new value only to replace it.")
 
 if st.button("Save settings"):
+    allowed_tickers = [x.strip().upper() for x in allowed_tickers_text.split(",") if x.strip()]
     key_cipher = None
     sec_cipher = None
     if app_key_in.strip():
@@ -157,20 +171,31 @@ if st.button("Save settings"):
         con.execute(
             """
             insert into public.user_auto_trade_settings(
-              user_id, enabled, budget_usd, stop_loss_pct, take_profit_pct,
-              max_trades_per_day, eod_closeout, webull_account_id, updated_at
-            ) values (%s,%s,%s,%s,%s,%s,%s,nullif(trim(%s),''), now())
-            on conflict (user_id) do update set
-              enabled = excluded.enabled,
-              budget_usd = excluded.budget_usd,
-              stop_loss_pct = excluded.stop_loss_pct,
-              take_profit_pct = excluded.take_profit_pct,
-              max_trades_per_day = excluded.max_trades_per_day,
-              eod_closeout = excluded.eod_closeout,
-              webull_account_id = excluded.webull_account_id,
-              updated_at = now()
+                user_id, enabled, budget_usd, stop_loss_pct, take_profit_pct,
+                max_trades_per_day, eod_closeout, webull_account_id, allowed_tickers, updated_at
+                ) values (%s,%s,%s,%s,%s,%s,%s,nullif(trim(%s),''), %s, now())
+                on conflict (user_id) do update set
+                enabled = excluded.enabled,
+                budget_usd = excluded.budget_usd,
+                stop_loss_pct = excluded.stop_loss_pct,
+                take_profit_pct = excluded.take_profit_pct,
+                max_trades_per_day = excluded.max_trades_per_day,
+                eod_closeout = excluded.eod_closeout,
+                webull_account_id = excluded.webull_account_id,
+                allowed_tickers = excluded.allowed_tickers,
+                updated_at = now()
             """,
-            (user_id, en, budget_usd, sl_pct, tp_pct, max_trades, eod, acct_in or ""),
+                (
+                    user_id,
+                    en,
+                    budget_usd,
+                    sl_pct,
+                    tp_pct,
+                    max_trades,
+                    eod_closeout,
+                    acct_in or "",
+                    allowed_tickers if allowed_tickers else None,
+                )
         )
         if key_cipher:
             con.execute(
