@@ -9,7 +9,7 @@ if str(_ROOT) not in sys.path:
 
 from app.auth import require_login, logout_button
 from app.db import pg_conn
-from common.auto_trade_crypto import encrypt_str, get_fernet_key_from_streamlit_secrets
+from auto_trade_crypto import encrypt_str, get_fernet_key_from_streamlit_secrets
 
 
 st.set_page_config(page_title="Auto-trade (Webull)", layout="wide")
