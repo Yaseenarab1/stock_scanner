@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from auth import require_login, logout_button
-from db import pg_conn
 
 import numpy as np
 import plotly.graph_objects as go
@@ -11,6 +9,8 @@ from plotly.subplots import make_subplots
 from polygon import RESTClient
 from streamlit_autorefresh import st_autorefresh
 
+from auth import require_login, logout_button
+from db import pg_conn
 
 ET = ZoneInfo("America/New_York")
 
@@ -34,6 +34,8 @@ with st.sidebar:
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
     if st.button("👤 Profile / Notifications"):
         st.switch_page("app/pages/9_Profile.py")
+    if st.button("🤖 Auto-trade (Webull)"):
+        st.switch_page("app/pages/10_Auto_Trade.py")
 
     st.subheader("Global filters")
     show_only_10m = st.checkbox("Show only 10-minute alerts", value=True)
@@ -169,7 +171,6 @@ with pg_conn() as con:
 
 if mcap_filter and not tenm.empty:
     tenm = tenm[(tenm["market_cap"].notna()) & (tenm["market_cap"] < 150_000_000)]
-    tickers_all = sorted(set(wl["ticker"].tolist()) | set(tenm["ticker"].tolist()))
 
 st.subheader("🌍 Global Alerts (today)")
 if tenm.empty:
