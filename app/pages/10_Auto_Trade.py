@@ -301,100 +301,102 @@ if st.button("💾 Save settings", type="primary"):
 st.divider()
 st.subheader("🧪 Test Webull connection")
 st.caption(
-    "Decrypts your stored keys and makes a live call to Webull to verify they work. "
-    "Save credentials first before testing."
+    "Checks your credential health based on worker activity logs — "
+    "no SDK required on the Streamlit server."
 )
 
 col_test, col_spacer = st.columns([1, 3])
 with col_test:
-    test_btn = st.button("▶ Test credentials now", disabled=not (has_key and has_secret))
+    test_btn = st.button("▶ Check credential health", disabled=not (has_key and has_secret))
 
 if not (has_key and has_secret):
     st.caption("⚠️ No credentials on file yet — save your app key and secret first.")
 
 if test_btn:
-    with st.spinner("Connecting to Webull API…"):
-        try:
-            # Step 1: import webull_trade from the correct path
-            import importlib.util, sys
-            from pathlib import Path
+    with pg_conn() as con:
+        # Most recent order attempt
+        last_order = con.execute(
+            """
+            select http_status, response_body, side, ticker, created_at
+            from public.user_auto_trade_orders
+            where user_id = %s
+            order by created_at desc
+            limit 1
+            """,
+            (user_id,),
+        ).fetchone()
 
-            wbt = None
+        # Last successful order
+        last_ok = con.execute(
+            """
+            select side, ticker, created_at
+            from public.user_auto_trade_orders
+            where user_id = %s and http_status = 200
+            order by created_at desc
+            limit 1
+            """,
+            (user_id,),
+        ).fetchone()
 
-            _wbt_candidates = [
-                Path(__file__).resolve().parents[1] / "worker" / "webull_trade.py",  # app/../worker/
-                Path(__file__).resolve().parents[1] / "webull_trade.py",             # app/
-                Path(__file__).resolve().parent / "webull_trade.py",                 # pages/ (same folder)
-            ]
-            
-            for _p in _wbt_candidates:
-                if _p.exists():
-                    _spec = importlib.util.spec_from_file_location("webull_trade_mod", _p)
-                    wbt = importlib.util.module_from_spec(_spec)
-                    _spec.loader.exec_module(wbt)
-                    break
+        # Count of failed orders in last 24h
+        recent_failures = con.execute(
+            """
+            select count(*), max(response_body)
+            from public.user_auto_trade_orders
+            where user_id = %s
+              and http_status != 200
+              and created_at > now() - interval '24 hours'
+            """,
+            (user_id,),
+        ).fetchone()
 
-            if wbt is None:
-                st.error(
-                    "❌ Could not find `webull_trade.py`. "
-                    f"Searched: {[str(p) for p in _wbt_candidates]}"
-                )
-            try:
-                app_key_plain = decrypt_str(app_key_cipher_db, fernet_key)
-                app_secret_plain = decrypt_str(app_secret_cipher_db, fernet_key)
-            except Exception as dec_err:
-                st.error(f"❌ Failed to decrypt stored credentials: {repr(dec_err)}")
-                app_key_plain = None
+    if last_order is None:
+        # No orders ever — check if auto-trade is even enabled and keys exist
+        st.info(
+            "ℹ️ No orders have been attempted yet — the worker hasn't fired a trade for you. "
+            "This is normal if no Page 2 buy signals have triggered since you enabled auto-trade. "
+            "It does **not** mean your credentials are wrong."
+        )
+        st.markdown("""
+**To verify your setup is ready:**
+- ✅ Auto-trade is **enabled** above
+- ✅ App key and secret are **on file**
+- ✅ Worker is running (check your worker logs / deployment)
+- ✅ Page 2 email alerts are **enabled** for your account (auto-trade only fires when you'd also get an email)
+- ⏳ Wait for the next Page 2 buy signal — the first order attempt will appear in Order History below
+""")
+    else:
+        http, body, side, ticker, created_at = last_order
+        ts_str = created_at.strftime("%Y-%m-%d %H:%M ET") if hasattr(created_at, "strftime") else str(created_at)
 
-            if app_key_plain:
-                # Step 3: build client
-                client = wbt.make_client(app_key_plain, app_secret_plain)
+        if http == 200:
+            st.success(
+                f"✅ Credentials are working. Last order: **{side} {ticker}** "
+                f"at {ts_str} — HTTP 200."
+            )
+        else:
+            st.error(f"❌ Last order attempt failed — HTTP {http} at {ts_str}")
+            rb_low = (body or "").lower()
+            if "401" in (body or "") or "unauthorized" in rb_low:
+                st.warning("🔑 **Invalid credentials** — your app key or secret was rejected by Webull. Re-enter them above.")
+            elif "403" in (body or "") or "forbidden" in rb_low:
+                st.warning("🔒 **Forbidden** — your API app may not have trading permissions enabled at developer.webull.com.")
+            elif "invalid" in rb_low and ("key" in rb_low or "secret" in rb_low):
+                st.warning("🔑 **Invalid key/secret** — re-enter your credentials above and save.")
+            elif "account" in rb_low and ("not found" in rb_low or "invalid" in rb_low):
+                st.warning("🏦 **Bad account ID** — clear the account ID field above and let the worker auto-detect it.")
+            elif "insufficient" in rb_low or "buying power" in rb_low:
+                st.warning("💰 **Insufficient funds** — not enough buying power in your Webull account.")
+            else:
+                st.warning(f"Response snippet: `{(body or '')[:300]}`")
 
-                # Step 4: call get_app_subscriptions — cheapest authenticated endpoint
-                try:
-                    resolved_acct = wbt.resolve_account_id(client, stored_acct or "")
-                    st.success(f"✅ Connection successful! Account ID: **{resolved_acct}**")
-
-                    # Auto-save resolved account ID if it was blank
-                    if not (stored_acct or "").strip() and resolved_acct:
-                        with pg_conn() as con:
-                            con.execute(
-                                "update public.user_auto_trade_settings set webull_account_id=%s, updated_at=now() where user_id=%s",
-                                (resolved_acct, user_id),
-                            )
-                        st.info(f"Account ID **{resolved_acct}** auto-saved to your settings.")
-
-                except RuntimeError as api_err:
-                    err_str = str(api_err)
-                    st.error(f"❌ Webull API rejected the credentials: {err_str}")
-
-                    # Give specific guidance based on common error patterns
-                    if "401" in err_str or "403" in err_str:
-                        st.warning(
-                            "**HTTP 401/403** — Your app key or secret is invalid or expired. "
-                            "Re-generate them at developer.webull.com and re-enter above."
-                        )
-                    elif "subscriptions empty" in err_str.lower():
-                        st.warning(
-                            "**No subscriptions found** — Your API app exists but has no brokerage account linked. "
-                            "Go to developer.webull.com → your app → link your brokerage account."
-                        )
-                    elif "404" in err_str:
-                        st.warning(
-                            "**HTTP 404** — The API endpoint was not found. "
-                            "Ensure you are using US region keys and the SDK version matches."
-                        )
-                    else:
-                        st.warning(
-                            "Check that your API app is approved, the brokerage account is linked, "
-                            "and the keys belong to the US region."
-                        )
-                except Exception as e:
-                    st.error(f"❌ Unexpected error during connection test: {repr(e)}")
-
-        except Exception as outer_err:
-            st.error(f"❌ Test failed: {repr(outer_err)}")
-
+        fail_count, last_fail_body = recent_failures
+        if last_ok:
+            ok_side, ok_ticker, ok_ts = last_ok
+            ok_ts_str = ok_ts.strftime("%Y-%m-%d %H:%M ET") if hasattr(ok_ts, "strftime") else str(ok_ts)
+            st.info(f"Last **successful** order: {ok_side} {ok_ticker} at {ok_ts_str}")
+        if fail_count and fail_count > 0:
+            st.warning(f"{fail_count} failed order(s) in the last 24 hours.")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 5 — OPEN POSITION DETAIL
