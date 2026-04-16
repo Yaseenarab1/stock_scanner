@@ -315,14 +315,33 @@ if not (has_key and has_secret):
 if test_btn:
     with st.spinner("Connecting to Webull API…"):
         try:
-            # Step 1: check SDK installed
-            try:
-                from worker import webull_trade as wbt  # noqa
-            except ImportError:
-                try:
-                    import webull_trade as wbt  # noqa
-                except ImportError:
-                    wbt = None
+            # Step 1: import webull_trade from the correct path
+            import importlib.util, sys
+            from pathlib import Path
+
+            wbt = None
+            _wbt_candidates = [
+                Path(__file__).resolve().parent / "webull_trade.py",          # same folder as this page
+                Path(__file__).resolve().parents[1] / "worker" / "webull_trade.py",  # ../worker/
+                Path(__file__).resolve().parents[2] / "worker" / "webull_trade.py",  # ../../worker/
+            ]
+            for _p in _wbt_candidates:
+                if _p.exists():
+                    _spec = importlib.util.spec_from_file_location("webull_trade_mod", _p)
+                    wbt = importlib.util.module_from_spec(_spec)
+                    _spec.loader.exec_module(wbt)
+                    break
+
+            if wbt is None:
+                st.error(
+                    "❌ Could not find `webull_trade.py`. "
+                    f"Searched: {[str(p) for p in _wbt_candidates]}"
+                )
+            elif not wbt.sdk_available():
+                st.error(
+                    "❌ Webull SDK not installed. "
+                    "Add to worker deps: `webull-python-sdk-core webull-python-sdk-trade webull-python-sdk-mdata`"
+                )
 
             try:
                 app_key_plain = decrypt_str(app_key_cipher_db, fernet_key)
