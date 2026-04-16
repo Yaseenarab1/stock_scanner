@@ -320,11 +320,13 @@ if test_btn:
             from pathlib import Path
 
             wbt = None
+
             _wbt_candidates = [
-                Path(__file__).resolve().parent / "webull_trade.py",          # same folder as this page
-                Path(__file__).resolve().parents[1] / "worker" / "webull_trade.py",  # ../worker/
-                Path(__file__).resolve().parents[2] / "worker" / "webull_trade.py",  # ../../worker/
+                Path(__file__).resolve().parents[1] / "worker" / "webull_trade.py",  # app/../worker/
+                Path(__file__).resolve().parents[1] / "webull_trade.py",             # app/
+                Path(__file__).resolve().parent / "webull_trade.py",                 # pages/ (same folder)
             ]
+            
             for _p in _wbt_candidates:
                 if _p.exists():
                     _spec = importlib.util.spec_from_file_location("webull_trade_mod", _p)
