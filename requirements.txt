@@ -10,4 +10,5 @@ streamlit-autorefresh
 webull-python-sdk-core
 webull-python-sdk-trade
 webull-python-sdk-mdata
-rich<15
+rich>=13.0.0,<15.0.0
+pyiceberg==0.11.1
