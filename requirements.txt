@@ -7,3 +7,6 @@ supabase
 psycopg[binary]
 streamlit-cookies-manager
 streamlit-autorefresh
+webull-python-sdk-core
+webull-python-sdk-trade
+webull-python-sdk-mdata
