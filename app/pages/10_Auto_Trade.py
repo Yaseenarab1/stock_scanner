@@ -325,7 +325,7 @@ if test_btn:
                     wbt = None
 
             if wbt is None or not wbt.sdk_available():
-               print(hi)
+               print("hi")
             else:
                 # Step 2: decrypt keys
                 try:
