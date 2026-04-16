@@ -339,12 +339,6 @@ if test_btn:
                     "❌ Could not find `webull_trade.py`. "
                     f"Searched: {[str(p) for p in _wbt_candidates]}"
                 )
-            elif not wbt.sdk_available():
-                st.error(
-                    "❌ Webull SDK not installed. "
-                    "Add to worker deps: `webull-python-sdk-core webull-python-sdk-trade webull-python-sdk-mdata`"
-                )
-
             try:
                 app_key_plain = decrypt_str(app_key_cipher_db, fernet_key)
                 app_secret_plain = decrypt_str(app_secret_cipher_db, fernet_key)
