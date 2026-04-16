@@ -325,10 +325,7 @@ if test_btn:
                     wbt = None
 
             if wbt is None or not wbt.sdk_available():
-                st.error(
-                    "❌ Webull SDK not installed on this server. "
-                    "Run: `pip install webull-python-sdk-core webull-python-sdk-trade webull-python-sdk-mdata`"
-                )
+               print(hi)
             else:
                 # Step 2: decrypt keys
                 try:
