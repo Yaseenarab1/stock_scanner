@@ -10,4 +10,4 @@ streamlit-autorefresh
 webull-python-sdk-core
 webull-python-sdk-trade
 webull-python-sdk-mdata
-rich==14.3.0
+rich<15
