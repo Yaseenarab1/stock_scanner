@@ -324,62 +324,58 @@ if test_btn:
                 except ImportError:
                     wbt = None
 
-            if wbt is None or not wbt.sdk_available():
-               print("hi")
-            else:
-                # Step 2: decrypt keys
+            try:
+                app_key_plain = decrypt_str(app_key_cipher_db, fernet_key)
+                app_secret_plain = decrypt_str(app_secret_cipher_db, fernet_key)
+            except Exception as dec_err:
+                st.error(f"❌ Failed to decrypt stored credentials: {repr(dec_err)}")
+                app_key_plain = None
+
+            if app_key_plain:
+                # Step 3: build client
+                client = wbt.make_client(app_key_plain, app_secret_plain)
+
+                # Step 4: call get_app_subscriptions — cheapest authenticated endpoint
                 try:
-                    app_key_plain = decrypt_str(app_key_cipher_db, fernet_key)
-                    app_secret_plain = decrypt_str(app_secret_cipher_db, fernet_key)
-                except Exception as dec_err:
-                    st.error(f"❌ Failed to decrypt stored credentials: {repr(dec_err)}")
-                    app_key_plain = None
+                    resolved_acct = wbt.resolve_account_id(client, stored_acct or "")
+                    st.success(f"✅ Connection successful! Account ID: **{resolved_acct}**")
 
-                if app_key_plain:
-                    # Step 3: build client
-                    client = wbt.make_client(app_key_plain, app_secret_plain)
-
-                    # Step 4: call get_app_subscriptions — cheapest authenticated endpoint
-                    try:
-                        resolved_acct = wbt.resolve_account_id(client, stored_acct or "")
-                        st.success(f"✅ Connection successful! Account ID: **{resolved_acct}**")
-
-                        # Auto-save resolved account ID if it was blank
-                        if not (stored_acct or "").strip() and resolved_acct:
-                            with pg_conn() as con:
-                                con.execute(
-                                    "update public.user_auto_trade_settings set webull_account_id=%s, updated_at=now() where user_id=%s",
-                                    (resolved_acct, user_id),
-                                )
-                            st.info(f"Account ID **{resolved_acct}** auto-saved to your settings.")
-
-                    except RuntimeError as api_err:
-                        err_str = str(api_err)
-                        st.error(f"❌ Webull API rejected the credentials: {err_str}")
-
-                        # Give specific guidance based on common error patterns
-                        if "401" in err_str or "403" in err_str:
-                            st.warning(
-                                "**HTTP 401/403** — Your app key or secret is invalid or expired. "
-                                "Re-generate them at developer.webull.com and re-enter above."
+                    # Auto-save resolved account ID if it was blank
+                    if not (stored_acct or "").strip() and resolved_acct:
+                        with pg_conn() as con:
+                            con.execute(
+                                "update public.user_auto_trade_settings set webull_account_id=%s, updated_at=now() where user_id=%s",
+                                (resolved_acct, user_id),
                             )
-                        elif "subscriptions empty" in err_str.lower():
-                            st.warning(
-                                "**No subscriptions found** — Your API app exists but has no brokerage account linked. "
-                                "Go to developer.webull.com → your app → link your brokerage account."
-                            )
-                        elif "404" in err_str:
-                            st.warning(
-                                "**HTTP 404** — The API endpoint was not found. "
-                                "Ensure you are using US region keys and the SDK version matches."
-                            )
-                        else:
-                            st.warning(
-                                "Check that your API app is approved, the brokerage account is linked, "
-                                "and the keys belong to the US region."
-                            )
-                    except Exception as e:
-                        st.error(f"❌ Unexpected error during connection test: {repr(e)}")
+                        st.info(f"Account ID **{resolved_acct}** auto-saved to your settings.")
+
+                except RuntimeError as api_err:
+                    err_str = str(api_err)
+                    st.error(f"❌ Webull API rejected the credentials: {err_str}")
+
+                    # Give specific guidance based on common error patterns
+                    if "401" in err_str or "403" in err_str:
+                        st.warning(
+                            "**HTTP 401/403** — Your app key or secret is invalid or expired. "
+                            "Re-generate them at developer.webull.com and re-enter above."
+                        )
+                    elif "subscriptions empty" in err_str.lower():
+                        st.warning(
+                            "**No subscriptions found** — Your API app exists but has no brokerage account linked. "
+                            "Go to developer.webull.com → your app → link your brokerage account."
+                        )
+                    elif "404" in err_str:
+                        st.warning(
+                            "**HTTP 404** — The API endpoint was not found. "
+                            "Ensure you are using US region keys and the SDK version matches."
+                        )
+                    else:
+                        st.warning(
+                            "Check that your API app is approved, the brokerage account is linked, "
+                            "and the keys belong to the US region."
+                        )
+                except Exception as e:
+                    st.error(f"❌ Unexpected error during connection test: {repr(e)}")
 
         except Exception as outer_err:
             st.error(f"❌ Test failed: {repr(outer_err)}")
