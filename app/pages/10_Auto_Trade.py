@@ -49,6 +49,8 @@ with pg_conn() as con:
           take_profit_pct numeric(10,4) not null default 10,
           max_trades_per_day int not null default 1,
           eod_closeout boolean not null default true,
+          sl_enabled boolean not null default true,
+          tp_enabled boolean not null default true,
           webull_account_id text,
           app_key_cipher text,
           app_secret_cipher text,
@@ -71,6 +73,8 @@ with pg_conn() as con:
           stop_loss_pct numeric(10,4) not null,
           take_profit_pct numeric(10,4) not null,
           eod_closeout boolean not null,
+          sl_enabled boolean not null default true,
+          tp_enabled boolean not null default true,
           buy_client_order_id text not null,
           sell_client_order_id text,
           status text not null default 'open' check (status in ('open','closed')),
@@ -79,6 +83,17 @@ with pg_conn() as con:
         )
         """
     )
+    # Safe upgrade for existing deployments: add columns if missing
+    for ddl in [
+        "alter table public.user_auto_trade_settings  add column if not exists sl_enabled boolean not null default true",
+        "alter table public.user_auto_trade_settings  add column if not exists tp_enabled boolean not null default true",
+        "alter table public.user_auto_trade_positions add column if not exists sl_enabled boolean not null default true",
+        "alter table public.user_auto_trade_positions add column if not exists tp_enabled boolean not null default true",
+    ]:
+        try:
+            con.execute(ddl)
+        except Exception:
+            pass
     con.execute(
         """
         create unique index if not exists user_auto_trade_one_open_per_user
@@ -116,7 +131,9 @@ with pg_conn() as con:
                (app_key_cipher is not null and length(trim(app_key_cipher)) > 0) as has_key,
                (app_secret_cipher is not null and length(trim(app_secret_cipher)) > 0) as has_secret,
                trades_done_today, last_trade_date,
-               app_key_cipher, app_secret_cipher
+               app_key_cipher, app_secret_cipher,
+               coalesce(sl_enabled, true) as sl_enabled,
+               coalesce(tp_enabled, true) as tp_enabled
         from public.user_auto_trade_settings
         where user_id = %s
         """,
@@ -128,6 +145,7 @@ with pg_conn() as con:
     stored_acct, has_key, has_secret,
     tdone, ltd,
     app_key_cipher_db, app_secret_cipher_db,
+    sl_enabled_db, tp_enabled_db,
 ) = row
 
 
@@ -157,7 +175,9 @@ with col4:
 with pg_conn() as con:
     open_pos = con.execute(
         """
-        select ticker, qty, entry_price, stop_loss_pct, take_profit_pct, opened_at, trade_date
+        select id, ticker, qty, entry_price, stop_loss_pct, take_profit_pct,
+               coalesce(sl_enabled, true), coalesce(tp_enabled, true),
+               eod_closeout, opened_at, trade_date
         from public.user_auto_trade_positions
         where user_id = %s and status = 'open'
         limit 1
@@ -166,13 +186,90 @@ with pg_conn() as con:
     ).fetchone()
 
 if open_pos:
-    tkr, qty, entry, sl_pos, tp_pos, opened_at, tdate = open_pos
+    (pos_id, tkr, qty, entry, sl_pos, tp_pos,
+     sl_on_pos, tp_on_pos, eod_pos, opened_at, tdate) = open_pos
     stop_px = float(entry) * (1 - float(sl_pos) / 100)
     tp_px = float(entry) * (1 + float(tp_pos) / 100)
+    sl_desc = f"stop ${stop_px:.4f} ({float(sl_pos):.2f}%)" if sl_on_pos else "stop **OFF**"
+    tp_desc = f"target ${tp_px:.4f} ({float(tp_pos):.2f}%)" if tp_on_pos else "target **OFF**"
     st.info(
         f"📈 **Open position:** {tkr} · {qty} shares · entry ${float(entry):.4f} · "
-        f"stop ${stop_px:.4f} · target ${tp_px:.4f} · opened {opened_at.strftime('%Y-%m-%d %H:%M ET') if hasattr(opened_at, 'strftime') else opened_at}"
+        f"{sl_desc} · {tp_desc} · "
+        f"opened {opened_at.strftime('%Y-%m-%d %H:%M ET') if hasattr(opened_at, 'strftime') else opened_at}"
     )
+
+    # ───── Live controls for the currently open position ─────
+    st.subheader("🎛 Live position controls")
+    st.caption(
+        "Changes here apply to the **currently open position only**. "
+        "To change defaults for *future* trades, edit Trading Limits below."
+    )
+
+    lcol1, lcol2, lcol3 = st.columns(3)
+    with lcol1:
+        live_sl_on = st.toggle(
+            "Stop loss",
+            value=bool(sl_on_pos),
+            key=f"live_sl_on_{pos_id}",
+            help="Uncheck to disable the stop loss for this position only.",
+        )
+        live_sl_pct = st.number_input(
+            "Stop loss %",
+            min_value=0.1, max_value=90.0,
+            value=float(sl_pos), step=0.25,
+            key=f"live_sl_pct_{pos_id}",
+            disabled=not live_sl_on,
+        )
+    with lcol2:
+        live_tp_on = st.toggle(
+            "Take profit",
+            value=bool(tp_on_pos),
+            key=f"live_tp_on_{pos_id}",
+            help="Uncheck to disable the take profit for this position only.",
+        )
+        live_tp_pct = st.number_input(
+            "Take profit %",
+            min_value=0.1, max_value=500.0,
+            value=float(tp_pos), step=0.25,
+            key=f"live_tp_pct_{pos_id}",
+            disabled=not live_tp_on,
+        )
+    with lcol3:
+        live_eod = st.toggle(
+            "EOD close-out (≈3:55 PM ET)",
+            value=bool(eod_pos),
+            key=f"live_eod_{pos_id}",
+        )
+        st.caption(" ")  # vertical align with sibling column
+        apply_live = st.button("💾 Apply to this position", type="primary",
+                               key=f"apply_live_{pos_id}")
+
+    # Preview of live exit prices
+    live_stop_px = float(entry) * (1 - float(live_sl_pct) / 100)
+    live_tp_px = float(entry) * (1 + float(live_tp_pct) / 100)
+    _sl_preview = f"stop ${live_stop_px:.4f}" if live_sl_on else "stop OFF"
+    _tp_preview = f"target ${live_tp_px:.4f}" if live_tp_on else "target OFF"
+    st.caption(f"Preview after apply: {_sl_preview} · {_tp_preview} · "
+               f"EOD {'ON' if live_eod else 'OFF'}")
+
+    if apply_live:
+        with pg_conn() as con:
+            con.execute(
+                """
+                update public.user_auto_trade_positions
+                set stop_loss_pct   = %s,
+                    take_profit_pct = %s,
+                    sl_enabled      = %s,
+                    tp_enabled      = %s,
+                    eod_closeout    = %s
+                where id = %s and user_id = %s and status = 'open'
+                """,
+                (float(live_sl_pct), float(live_tp_pct),
+                 bool(live_sl_on), bool(live_tp_on),
+                 bool(live_eod), pos_id, user_id),
+            )
+        st.success("✅ Applied to open position. The worker will pick this up on its next tick.")
+        st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -194,6 +291,13 @@ with col_a:
         "Stop loss % below entry",
         min_value=0.1, max_value=90.0,
         value=float(sl), step=0.5,
+        disabled=not bool(sl_enabled_db),
+    )
+    sl_on = st.toggle(
+        "Use stop loss by default",
+        value=bool(sl_enabled_db),
+        help="When off, new trades are opened with NO stop loss. "
+             "You can still set one later via Live position controls.",
     )
 
 with col_b:
@@ -201,11 +305,17 @@ with col_b:
         "Take profit % above entry",
         min_value=0.1, max_value=500.0,
         value=float(tp), step=0.5,
+        disabled=not bool(tp_enabled_db),
     )
     max_trades = st.number_input(
         "Max buy+sell cycles per day",
         min_value=1, max_value=50,
         value=int(maxd),
+    )
+    tp_on = st.toggle(
+        "Use take profit by default",
+        value=bool(tp_enabled_db),
+        help="When off, new trades are opened with NO take profit.",
     )
 
 eod_closeout = st.toggle(
@@ -215,9 +325,13 @@ eod_closeout = st.toggle(
 
 # Live preview of thresholds
 if budget_usd and sl_pct and tp_pct:
+    sl_preview = (f"stop at **-${budget_usd * sl_pct / 100:,.2f}** ({sl_pct}%)"
+                  if sl_on else "stop **OFF**")
+    tp_preview = (f"target at **+${budget_usd * tp_pct / 100:,.2f}** ({tp_pct}%)"
+                  if tp_on else "target **OFF**")
     st.caption(
-        f"On a ${budget_usd:,.0f} position — stop triggers at **-${budget_usd * sl_pct / 100:,.2f}** "
-        f"({sl_pct}%), profit target at **+${budget_usd * tp_pct / 100:,.2f}** ({tp_pct}%)"
+        f"On a ${budget_usd:,.0f} position — {sl_preview}, {tp_preview}. "
+        f"These defaults apply to *future* trades only."
     )
 
 
@@ -267,8 +381,9 @@ if st.button("💾 Save settings", type="primary"):
             """
             insert into public.user_auto_trade_settings(
               user_id, enabled, budget_usd, stop_loss_pct, take_profit_pct,
-              max_trades_per_day, eod_closeout, webull_account_id, updated_at
-            ) values (%s,%s,%s,%s,%s,%s,%s,nullif(trim(%s),''), now())
+              max_trades_per_day, eod_closeout, sl_enabled, tp_enabled,
+              webull_account_id, updated_at
+            ) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,nullif(trim(%s),''), now())
             on conflict (user_id) do update set
               enabled = excluded.enabled,
               budget_usd = excluded.budget_usd,
@@ -276,10 +391,13 @@ if st.button("💾 Save settings", type="primary"):
               take_profit_pct = excluded.take_profit_pct,
               max_trades_per_day = excluded.max_trades_per_day,
               eod_closeout = excluded.eod_closeout,
+              sl_enabled = excluded.sl_enabled,
+              tp_enabled = excluded.tp_enabled,
               webull_account_id = excluded.webull_account_id,
               updated_at = now()
             """,
-            (user_id, en, budget_usd, sl_pct, tp_pct, max_trades, eod_closeout, acct_in or ""),
+            (user_id, en, budget_usd, sl_pct, tp_pct, max_trades, eod_closeout,
+             bool(sl_on), bool(tp_on), acct_in or ""),
         )
         if key_cipher:
             con.execute(
