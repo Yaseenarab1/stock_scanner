@@ -517,12 +517,13 @@ if test_btn:
             st.warning(f"{fail_count} failed order(s) in the last 24 hours.")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SECTION 5 — OPEN POSITION DETAIL
+# SECTION 5 — OPEN POSITION DETAIL + MANUAL RECONCILIATION
 # ══════════════════════════════════════════════════════════════════════════════
 if open_pos:
     st.divider()
     st.subheader("📂 Current open position")
-    tkr, qty, entry, sl_pos, tp_pos, opened_at, tdate = open_pos
+    # NOTE: open_pos was already unpacked higher up the page (live-controls
+    # section). Re-use those locals instead of unpacking again.
     entry_f = float(entry)
     stop_px = entry_f * (1 - float(sl_pos) / 100)
     tp_px = entry_f * (1 + float(tp_pos) / 100)
@@ -534,8 +535,69 @@ if open_pos:
     pc4.metric("Trade date", str(tdate))
 
     pc5, pc6 = st.columns(2)
-    pc5.metric("Stop loss trigger", f"${stop_px:.4f}", f"-{sl_pos}%", delta_color="inverse")
-    pc6.metric("Take profit trigger", f"${tp_px:.4f}", f"+{tp_pos}%")
+    if sl_on_pos:
+        pc5.metric("Stop loss trigger", f"${stop_px:.4f}",
+                   f"-{sl_pos}%", delta_color="inverse")
+    else:
+        pc5.metric("Stop loss", "OFF")
+    if tp_on_pos:
+        pc6.metric("Take profit trigger", f"${tp_px:.4f}", f"+{tp_pos}%")
+    else:
+        pc6.metric("Take profit", "OFF")
+
+    # ────────────────────────────────────────────────────────────────────
+    # Manual reconciliation: I closed this position on Webull (or it
+    # otherwise filled outside the worker) and the row is stuck open.
+    # ────────────────────────────────────────────────────────────────────
+    with st.expander("🛠 Position out of sync? Fix it manually"):
+        st.markdown(
+            "Use this **only** if you closed the position outside this app "
+            "(e.g. directly in the Webull app), and the row above is still "
+            "showing as open. This marks the row closed in our database — "
+            "it does **not** place any order on Webull."
+        )
+        confirm = st.checkbox(
+            "I confirm this position is already closed on Webull",
+            key=f"manual_close_confirm_{pos_id}",
+        )
+        if st.button(
+            "Mark as closed (manual reconciliation)",
+            disabled=not confirm,
+            key=f"manual_close_btn_{pos_id}",
+        ):
+            with pg_conn() as con:
+                con.execute(
+                    """
+                    update public.user_auto_trade_positions
+                    set status = 'closed',
+                        closed_at = now(),
+                        sell_client_order_id =
+                            coalesce(sell_client_order_id, 'manual_external')
+                    where id = %s and user_id = %s and status = 'open'
+                    """,
+                    (pos_id, user_id),
+                )
+                # Audit trail in user_auto_trade_orders if that table exists
+                try:
+                    con.execute(
+                        """
+                        insert into public.user_auto_trade_orders(
+                            user_id, trade_date, ticker, side, qty,
+                            client_order_id, instrument_id, signal_ts_et,
+                            exit_reason, http_status, response_body
+                        ) values (%s,%s,%s,'SELL',%s,
+                                  'manual_external', null, null,
+                                  'manual_external_close (user marked closed in UI)',
+                                  null, 'reconciled by user via UI')
+                        """,
+                        (user_id, tdate, tkr, qty),
+                    )
+                except Exception:
+                    # orders table might not exist or schema may differ;
+                    # the position update above is the source of truth
+                    pass
+            st.success(f"✅ {tkr} marked as closed. Refreshing…")
+            st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
