@@ -35,13 +35,14 @@ with st.sidebar:
 # ── Quick navigation cards ────────────────────────────────────────────────────
 section("Workspaces", hint="jump straight in")
 
+# switch_page paths are resolved relative to this entrypoint's folder (app/).
 NAV = [
-    ("⚡", "Scanner", "Pre-market qualified movers", "app/pages/1_Scanner.py"),
-    ("🎯", "Buy Watcher", "Watchlist · signals · charts", "app/pages/2_Buy_Watcher.py"),
-    ("🔔", "Market Alerts", "Live RTH volume alerts", "app/pages/3_Market_Alerts.py"),
-    ("🪙", "Low-Price", "Sub-$5 microcap screener", "app/pages/4_small_stocks_screanner.py"),
-    ("🤖", "Auto-Trade", "Webull automation", "app/pages/10_Auto_Trade.py"),
-    ("👤", "Profile", "Notifications & account", "app/pages/9_Profile.py"),
+    ("⚡", "Scanner", "Pre-market qualified movers", "pages/1_Scanner.py"),
+    ("🎯", "Buy Watcher", "Watchlist · signals · charts", "pages/2_Buy_Watcher.py"),
+    ("🔔", "Market Alerts", "Live RTH volume alerts", "pages/3_Market_Alerts.py"),
+    ("🪙", "Low-Price", "Sub-$5 microcap screener", "pages/4_small_stocks_screanner.py"),
+    ("🤖", "Auto-Trade", "Webull automation", "pages/10_Auto_Trade.py"),
+    ("👤", "Profile", "Notifications & account", "pages/9_Profile.py"),
 ]
 
 cols = st.columns(3)
@@ -58,7 +59,10 @@ for i, (icon, title, desc, target) in enumerate(NAV):
             unsafe_allow_html=True,
         )
         if st.button(f"Open {title}", key=f"nav_{i}", use_container_width=True):
-            st.switch_page(target)
+            try:
+                st.switch_page(target)
+            except Exception:
+                st.error(f"Couldn't open {title}. Use the sidebar page list instead.")
 
 st.divider()
 st.caption("Tip: use the left sidebar to switch pages at any time.")

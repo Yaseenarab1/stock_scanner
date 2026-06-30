@@ -32,9 +32,9 @@ with st.sidebar:
     st.markdown(f"**Trade date**\n\n`{trade_date}`")
     st.divider()
     if st.button("👤 Profile / Notifications", use_container_width=True):
-        st.switch_page("app/pages/9_Profile.py")
+        st.switch_page("pages/9_Profile.py")
     if st.button("🤖 Auto-trade (Webull)", use_container_width=True):
-        st.switch_page("app/pages/10_Auto_Trade.py")
+        st.switch_page("pages/10_Auto_Trade.py")
     st.divider()
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
     logout_button()

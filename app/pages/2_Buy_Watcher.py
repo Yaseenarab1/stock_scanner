@@ -42,9 +42,9 @@ client = RESTClient(st.secrets["POLYGON_API_KEY"])
 with st.sidebar:
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
     if st.button("👤 Profile / Notifications", use_container_width=True):
-        st.switch_page("app/pages/9_Profile.py")
+        st.switch_page("pages/9_Profile.py")
     if st.button("🤖 Auto-trade (Webull)", use_container_width=True):
-        st.switch_page("app/pages/10_Auto_Trade.py")
+        st.switch_page("pages/10_Auto_Trade.py")
     st.divider()
 
     st.subheader("Global filters")
