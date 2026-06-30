@@ -13,9 +13,9 @@ from auth import require_login, logout_button
 from db import pg_conn
 
 try:
-    from ui import apply_theme, page_header, section, kpi_row, clock_caption
+    from ui import apply_theme, page_header, section, kpi_row, clock_caption, auto_column_config
 except ModuleNotFoundError:
-    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption
+    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption, auto_column_config
 
 ET = ZoneInfo("America/New_York")
 
@@ -133,7 +133,8 @@ section("My Watchlist", hint="personal · per trade-date")
 if wl.empty:
     st.info("You have no tickers in your personal watchlist yet.")
 else:
-    st.dataframe(wl, use_container_width=True, hide_index=True)
+    st.dataframe(wl, use_container_width=True, hide_index=True,
+                 column_config=auto_column_config(wl))
 
 with st.expander("Remove tickers from MY watchlist"):
     if wl.empty:
@@ -196,7 +197,8 @@ section("Global Alerts", hint="today · RTH volume")
 if tenm.empty:
     st.info("No alerts yet today.")
 else:
-    st.dataframe(tenm, use_container_width=True, hide_index=True)
+    st.dataframe(tenm, use_container_width=True, hide_index=True,
+                 column_config=auto_column_config(tenm))
 
 # -----------------------------
 # BUY signals (DB) for all tickers shown on this page
@@ -228,7 +230,8 @@ else:
     if buys.empty:
         st.info("No buy signals yet today for these tickers.")
     else:
-        st.dataframe(buys, use_container_width=True, hide_index=True)
+        st.dataframe(buys, use_container_width=True, hide_index=True,
+                 column_config=auto_column_config(buys))
 
 # -----------------------------
 # Chart helpers

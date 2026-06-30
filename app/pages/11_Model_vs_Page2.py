@@ -22,9 +22,9 @@ from auth import require_login, logout_button
 from db import pg_conn
 
 try:
-    from ui import apply_theme, page_header, section
+    from ui import apply_theme, page_header, section, kpi_row, auto_column_config
 except ModuleNotFoundError:
-    from app.ui import apply_theme, page_header, section
+    from app.ui import apply_theme, page_header, section, kpi_row, auto_column_config
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -105,7 +105,8 @@ if not all_versions.empty:
         "last_day": "Last day",
         "n_days": "Days",
     })
-    st.dataframe(hh, use_container_width=True, hide_index=True)
+    st.dataframe(hh, use_container_width=True, hide_index=True,
+             column_config=auto_column_config(hh))
     if baseline_pct is not None:
         st.caption(
             f"Baseline (buy all episode-starts, no model): **{baseline_pct}%** precision. "
@@ -123,7 +124,6 @@ else:
     st.info("No model predictions with outcomes yet — check back after market close.")
 
 st.divider()
-logout_button()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -259,39 +259,28 @@ df["page2_pick"] = df["signal_fired"]  # keep alias for backward compat
 # ─────────────────────────────────────────────────────────────────────────────
 # Top: headline metrics (hit rate of +3% per strategy)
 # ─────────────────────────────────────────────────────────────────────────────
-st.subheader("📊 Hit rate — did +3% actually happen?")
-
-c1, c2, c3 = st.columns(3)
+section("Hit Rate", hint="did +3% actually happen?")
 
 # Page 2 picks
 p2 = df[df["signal_fired"]]
-if len(p2) > 0:
-    p2_hit = (p2["outcome_first"] == "up").sum()
-    p2_rate = p2_hit / len(p2)
-    c1.metric("Signal fired (model buy)", f"{len(p2)}",
-              f"{p2_hit} hit (+{p2_rate:.0%})")
-else:
-    c1.metric("Signal fired (model buy)", "0", "no fires this window")
-
-# Model picks
 m = df[df["model_pick"]]
-if len(m) > 0:
-    m_hit = (m["outcome_first"] == "up").sum()
-    m_rate = m_hit / len(m)
-    c2.metric("Model picks", f"{len(m)}",
-              f"{m_hit} hit (+{m_rate:.0%})")
-else:
-    c2.metric("Model picks", "0", "no fires this window")
-
-# Both agreed
 both = df[df["signal_fired"] & df["model_pick"]]
-if len(both) > 0:
-    b_hit = (both["outcome_first"] == "up").sum()
-    b_rate = b_hit / len(both)
-    c3.metric("Both agreed", f"{len(both)}",
-              f"{b_hit} hit (+{b_rate:.0%})")
-else:
-    c3.metric("Both agreed", "0", "—")
+
+
+def _hit_kpi(label, sub):
+    if len(sub) > 0:
+        hit = int((sub["outcome_first"] == "up").sum())
+        rate = hit / len(sub)
+        return {"label": label, "value": f"{len(sub)}",
+                "delta": f"{hit} hit (+{rate:.0%})", "trend": "up" if rate >= 0.5 else "down"}
+    return {"label": label, "value": "0", "delta": "no fires this window", "trend": "flat"}
+
+
+kpi_row([
+    _hit_kpi("Signal fired (model buy)", p2),
+    _hit_kpi("Model picks", m),
+    _hit_kpi("Both agreed", both),
+])
 
 # Baseline (what's the +3% rate of all qualified rows)
 base = df[df["outcome_first"].isin(["up", "down"])]
@@ -307,7 +296,7 @@ if len(base):
 # ─────────────────────────────────────────────────────────────────────────────
 # Per-day breakdown
 # ─────────────────────────────────────────────────────────────────────────────
-st.subheader("📅 Per-day breakdown")
+section("Per-Day Breakdown")
 
 agg = df.groupby("trade_date").agg(
     obs=("obs_id", "count"),
@@ -331,13 +320,14 @@ show = agg[["trade_date", "obs", "page2_buys", "Signal hit rate",
     "page2_buys": "Signal fired",
     "model_buys": "Model buys",
 })
-st.dataframe(show, use_container_width=True, hide_index=True)
+st.dataframe(show, use_container_width=True, hide_index=True,
+             column_config=auto_column_config(show))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Disagreement: rows where the strategies parted ways
 # ─────────────────────────────────────────────────────────────────────────────
-st.subheader("⚔️ Where they disagree")
+section("Where They Disagree")
 
 cdis1, cdis2 = st.columns(2)
 model_only = df[df["model_pick"] & ~df["signal_fired"]]
@@ -352,7 +342,8 @@ with cdis1:
         st.dataframe(
             model_only[["trade_date", "ts_et", "ticker", "obs_close",
                         "rsi14", "score_up", "outcome_label"]]
-            .head(50), use_container_width=True, hide_index=True
+            .head(50), use_container_width=True, hide_index=True,
+            column_config=auto_column_config(model_only)
         )
 
 with cdis2:
@@ -364,14 +355,15 @@ with cdis2:
         st.dataframe(
             page2_only[["trade_date", "ts_et", "ticker", "obs_close",
                         "rsi14", "score_up", "outcome_label"]]
-            .head(50), use_container_width=True, hide_index=True
+            .head(50), use_container_width=True, hide_index=True,
+            column_config=auto_column_config(page2_only)
         )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Full table (filterable)
 # ─────────────────────────────────────────────────────────────────────────────
-st.subheader("📋 All observations in window")
+section("All Observations", hint="filterable")
 filter_choice = st.radio(
     "Filter", ["All", "Signal fired (model buy)", "Model picks", "Both picks", "Disagreements"],
     horizontal=True,
@@ -390,5 +382,6 @@ cols = ["trade_date", "ts_et", "ticker", "obs_close",
         "rsi14", "mfi14", "willr14", "market_cap",
         "signal_fired", "model_pick", "score_up", "outcome_label",
         "max_up_pct_eod", "max_down_pct_eod"]
-st.dataframe(view[cols].head(500), use_container_width=True, hide_index=True)
+st.dataframe(view[cols].head(500), use_container_width=True, hide_index=True,
+             column_config=auto_column_config(view[cols]))
 st.caption(f"Showing first 500 of {len(view):,}")

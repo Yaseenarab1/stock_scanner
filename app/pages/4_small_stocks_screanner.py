@@ -8,9 +8,9 @@ from auth import require_login, logout_button
 from db import pg_conn
 
 try:
-    from ui import apply_theme, page_header, section, kpi_row, clock_caption
+    from ui import apply_theme, page_header, section, kpi_row, clock_caption, auto_column_config
 except ModuleNotFoundError:
-    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption
+    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption, auto_column_config
 
 ET = ZoneInfo("America/New_York")
 
@@ -65,7 +65,8 @@ section("Low-Price Alerts", hint="today · newest first")
 if df.empty:
     st.info("No low-price target alerts yet today.")
 else:
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, use_container_width=True, hide_index=True,
+                 column_config=auto_column_config(df))
 
 st.divider()
 clock_caption(now)

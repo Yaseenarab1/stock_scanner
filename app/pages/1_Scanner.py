@@ -7,9 +7,9 @@ from app.auth import require_login, logout_button
 from app.db import pg_conn
 
 try:
-    from ui import apply_theme, page_header, section, kpi_row, clock_caption
+    from ui import apply_theme, page_header, section, kpi_row, clock_caption, auto_column_config
 except ModuleNotFoundError:
-    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption
+    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption, auto_column_config
 
 
 
@@ -78,7 +78,8 @@ section("Scanner Results", hint="global · sorted by lock → bursts → volume"
 if df.empty:
     st.info("No data yet today. The worker will populate this automatically.")
 else:
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, use_container_width=True, hide_index=True,
+                 column_config=auto_column_config(df))
 
 st.divider()
 

@@ -3,9 +3,9 @@ from app.auth import require_login, logout_button
 from app.db import pg_conn
 
 try:
-    from ui import apply_theme, page_header, section, pill
+    from ui import apply_theme, page_header, section, pill, auto_column_config
 except ModuleNotFoundError:
-    from app.ui import apply_theme, page_header, section, pill
+    from app.ui import apply_theme, page_header, section, pill, auto_column_config
 
 
 apply_theme(page_title="Profile", icon="👤")

@@ -305,6 +305,54 @@ def pill(text: str, kind: str = "muted") -> str:
     return f'<span class="pill {kind}">{dot}{text}</span>'
 
 
+def auto_column_config(df) -> dict:
+    """Build a Streamlit ``column_config`` dict from a DataFrame's column names.
+
+    Purely heuristic and fully defensive: it only configures columns that exist
+    and silently skips anything that errors, so a renamed/missing column can
+    never crash a page. Use as::
+
+        st.dataframe(df, column_config=auto_column_config(df), ...)
+    """
+    cfg: dict = {}
+    try:
+        cols = list(getattr(df, "columns", []))
+    except Exception:
+        return cfg
+
+    for col in cols:
+        try:
+            name = str(col).strip().lower()
+            c = st.column_config  # noqa: N806
+
+            # RSI → progress bar (0..100)
+            if name in ("rsi", "rsi14") or name.startswith("rsi"):
+                cfg[col] = c.ProgressColumn(str(col), min_value=0, max_value=100, format="%.0f")
+                continue
+            # Percentages / gains
+            if "pct" in name or "gain" in name or name.endswith("%") or "%" in name:
+                cfg[col] = c.NumberColumn(str(col), format="%.2f%%")
+                continue
+            # Market cap (big dollars)
+            if "market_cap" in name or name == "mcap":
+                cfg[col] = c.NumberColumn(str(col), format="$%d")
+                continue
+            # Prices
+            if (name in ("price", "entry", "current_price", "start_price",
+                         "baseline_8am", "boll_lower")
+                    or name.endswith("_price") or name.endswith("price")):
+                cfg[col] = c.NumberColumn(str(col), format="$%.4f")
+                continue
+            # Volumes / share counts
+            if "vol" in name or "shares" in name:
+                cfg[col] = c.NumberColumn(str(col), format="%d")
+                continue
+        except Exception:
+            # Never let table styling break a page.
+            continue
+    return cfg
+
+
 def clock_caption(now: datetime | None = None) -> None:
     """A small market-clock caption (ET) with last-updated time."""
     now = now or datetime.now(ET)
