@@ -12,13 +12,22 @@ from streamlit_autorefresh import st_autorefresh
 from auth import require_login, logout_button
 from db import pg_conn
 
+try:
+    from ui import apply_theme, page_header, section, kpi_row, clock_caption
+except ModuleNotFoundError:
+    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption
+
 ET = ZoneInfo("America/New_York")
 
-st.set_page_config(page_title="Buy Watcher", layout="wide")
+apply_theme(page_title="Buy Watcher", icon="🎯")
 require_login()
 
-st.title("🎟️ Page 2 — Buy Watcher (DB-backed)")
-logout_button()
+page_header(
+    "Buy Watcher",
+    subtitle="Your personal watchlist plus global qualified movers — with live "
+             "RTH alerts, buy signals and an interactive candle / RSI / Bollinger chart.",
+    eyebrow="PAGE 2 · BUY WATCHER",
+)
 
 now = datetime.now(ET)
 trade_date = now.date()
@@ -32,10 +41,11 @@ client = RESTClient(st.secrets["POLYGON_API_KEY"])
 # -----------------------------
 with st.sidebar:
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
-    if st.button("👤 Profile / Notifications"):
+    if st.button("👤 Profile / Notifications", use_container_width=True):
         st.switch_page("app/pages/9_Profile.py")
-    if st.button("🤖 Auto-trade (Webull)"):
+    if st.button("🤖 Auto-trade (Webull)", use_container_width=True):
         st.switch_page("app/pages/10_Auto_Trade.py")
+    st.divider()
 
     st.subheader("Global filters")
     show_only_10m = st.checkbox("Show only 10-minute alerts", value=True)
@@ -43,7 +53,7 @@ with st.sidebar:
 
     st.subheader("Add ticker (manual)")
     new_ticker = st.text_input("Ticker", value="", placeholder="e.g. NVDA").strip().upper()
-    if st.button("➕ Add"):
+    if st.button("➕ Add", type="primary", use_container_width=True):
         if new_ticker:
             with pg_conn() as con:
                 con.execute(
@@ -57,6 +67,9 @@ with st.sidebar:
                 )
             st.success(f"Added {new_ticker}")
             st.rerun()
+
+    st.divider()
+    logout_button()
 
 # Non-blocking autorefresh
 st_autorefresh(interval=refresh * 1000, key="page2_refresh")
@@ -109,7 +122,14 @@ tickers_all = sorted(set(wl["ticker"].tolist()) | set(gw["ticker"].tolist()))
 # -----------------------------
 # Remove tickers UI (only affects user_watchlist)
 # -----------------------------
-st.subheader("My watchlist")
+kpi_row([
+    {"label": "My Watchlist", "value": f"{len(wl):,}"},
+    {"label": "Global Movers", "value": f"{len(gw):,}"},
+    {"label": "Tracked (total)", "value": f"{len(tickers_all):,}"},
+    {"label": "Filter", "value": "10m only" if show_only_10m else "all windows"},
+])
+
+section("My Watchlist", hint="personal · per trade-date")
 if wl.empty:
     st.info("You have no tickers in your personal watchlist yet.")
 else:
@@ -172,7 +192,7 @@ with pg_conn() as con:
 if mcap_filter and not tenm.empty:
     tenm = tenm[(tenm["market_cap"].notna()) & (tenm["market_cap"] < 150_000_000)]
 
-st.subheader("🌍 Global Alerts (today)")
+section("Global Alerts", hint="today · RTH volume")
 if tenm.empty:
     st.info("No alerts yet today.")
 else:
@@ -181,7 +201,7 @@ else:
 # -----------------------------
 # BUY signals (DB) for all tickers shown on this page
 # -----------------------------
-st.subheader("🧾 Buy signals (today) — based on tickers visible here (global + your list)")
+section("Buy Signals", hint="today · global + your list")
 if not tickers_all:
     st.info("No tickers available yet (global list empty and you have no watchlist tickers).")
 else:
@@ -307,7 +327,7 @@ def plot_candles_rsi_boll(df: pd.DataFrame, ticker: str) -> go.Figure:
 # -----------------------------
 # Chart UI
 # -----------------------------
-st.subheader("📈 Chart")
+section("Interactive Chart", hint="1m candles · RSI(14) · Bollinger")
 if not tickers_all:
     st.info("No tickers to chart yet.")
 else:

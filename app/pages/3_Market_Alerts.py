@@ -9,13 +9,22 @@ import streamlit.components.v1 as components
 from auth import require_login, logout_button
 from db import pg_conn
 
+try:
+    from ui import apply_theme, page_header, section, kpi_row, clock_caption
+except ModuleNotFoundError:
+    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption
+
 ET = ZoneInfo("America/New_York")
 
-st.set_page_config(page_title="open market screanner - all of the stocks - all prices", layout="wide")
+apply_theme(page_title="Market Alerts", icon="🔔")
 require_login()
 
-st.title("🔔 Page 3 — RTH Alerts (DB-backed)")
-logout_button()
+page_header(
+    "Market Alerts",
+    subtitle="Real-time RTH volume alerts across all stocks and prices, with an "
+             "audible ping whenever a fresh alert lands.",
+    eyebrow="PAGE 3 · RTH ALERTS",
+)
 
 now = datetime.now(ET)
 trade_date = now.date()
@@ -35,6 +44,8 @@ with st.sidebar:
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
     limit = st.slider("Rows", 50, 500, 250, 50)
     mcap_only = st.checkbox("Only market cap < 150M", value=False)
+    st.divider()
+    logout_button()
 
 with pg_conn() as con:
     alerts = pd.read_sql("""
@@ -57,7 +68,20 @@ with pg_conn() as con:
 if mcap_only and not alerts.empty:
     alerts = alerts[(alerts["market_cap"].notna()) & (alerts["market_cap"] < 150_000_000)]
 
-st.subheader("Alerts (today)")
+if alerts.empty:
+    last_px, busiest = "—", "—"
+else:
+    last_px = f"${float(alerts.iloc[0]['price']):,.2f}" if pd.notna(alerts.iloc[0]["price"]) else "—"
+    busiest = str(alerts.iloc[0]["ticker"])
+
+kpi_row([
+    {"label": "Alerts Today", "value": f"{len(alerts):,}"},
+    {"label": "Most Recent", "value": busiest},
+    {"label": "Last Price", "value": last_px},
+    {"label": "Cap Filter", "value": "< 150M" if mcap_only else "off"},
+])
+
+section("Alerts", hint="today · newest first")
 if alerts.empty:
     st.info("No alerts yet today.")
 else:
@@ -79,6 +103,7 @@ if new_rows:
     play_beep_once(str(datetime.now().timestamp()), WAV_B64)
     st.toast(f"🚨 {len(new_rows)} new alert(s)", icon="🚨")
 
-st.caption("Auto-refreshing…")
+st.divider()
+clock_caption(now)
 time.sleep(int(refresh))
 st.rerun()

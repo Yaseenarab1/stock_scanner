@@ -2,18 +2,30 @@ import streamlit as st
 from app.auth import require_login, logout_button
 from app.db import pg_conn
 
+try:
+    from ui import apply_theme, page_header, section, pill
+except ModuleNotFoundError:
+    from app.ui import apply_theme, page_header, section, pill
 
-st.set_page_config(page_title="Profile", layout="wide")
+
+apply_theme(page_title="Profile", icon="👤")
 require_login()
 
-st.title("👤 Profile / Notifications")
-logout_button()
+page_header(
+    "Profile & Notifications",
+    subtitle="Control which scanners are allowed to email you, and jump to your "
+             "auto-trade settings.",
+    eyebrow="PAGE 9 · ACCOUNT",
+    status=None,
+)
 
 user = st.session_state.auth_user
 user_id = user["id"]
 email = user.get("email") or ""
 
-st.write(f"Signed in as: **{email}**")
+st.markdown(f'Signed in as &nbsp; {pill(email, "live")}', unsafe_allow_html=True)
+with st.sidebar:
+    logout_button()
 
 with pg_conn() as con:
     # ensure prefs row exists
@@ -50,7 +62,7 @@ with pg_conn() as con:
 
 alerts_enabled = bool(row[0]) if row else True
 
-st.subheader("Email notifications")
+section("Email Notifications", hint="master + per-page control")
 new_alerts_enabled = st.toggle("Master switch", value=alerts_enabled)
 
 page2_enabled = page3_enabled = page4_enabled = True
@@ -99,6 +111,7 @@ if new_alerts_enabled != alerts_enabled or (
     st.success("Saved.")
 
 st.divider()
-if st.button("Open Auto-trade (Webull) settings"):
+section("Auto-Trade", hint="Webull integration")
+if st.button("🤖 Open Auto-trade (Webull) settings", type="primary"):
     st.switch_page("pages/10_Auto_Trade.py")
 

@@ -7,13 +7,22 @@ from zoneinfo import ZoneInfo
 from auth import require_login, logout_button
 from db import pg_conn
 
+try:
+    from ui import apply_theme, page_header, section, kpi_row, clock_caption
+except ModuleNotFoundError:
+    from app.ui import apply_theme, page_header, section, kpi_row, clock_caption
+
 ET = ZoneInfo("America/New_York")
 
-st.set_page_config(page_title="page 4 - 0.2 - 5$ scanner ", layout="wide")
+apply_theme(page_title="Low-Price Screener", icon="🪙")
 require_login()
 
-st.title("Page 4 — Low Price ($0.10–$5.00) $10M/10m Target Alerts")
-logout_button()
+page_header(
+    "Low-Price Screener",
+    subtitle="Sub-$5 names ($0.10–$5.00) hitting the $10M-per-10-minute volume "
+             "target — the fast-money microcap watch.",
+    eyebrow="PAGE 4 · LOW-PRICE",
+)
 
 now = datetime.now(ET)
 trade_date = now.date()
@@ -22,6 +31,8 @@ with st.sidebar:
     refresh = st.slider("Refresh (seconds)", 5, 60, 10)
     limit = st.slider("Rows", 50, 500, 250, 50)
     mcap_only = st.checkbox("Only market cap < 150M (Yahoo)", value=False)
+    st.divider()
+    logout_button()
 
 with pg_conn() as con:
     df = pd.read_sql("""
@@ -42,12 +53,21 @@ with pg_conn() as con:
 if mcap_only and not df.empty:
     df = df[(df["market_cap"].notna()) & (df["market_cap"] < 150_000_000)]
 
-st.subheader("Low Price Alerts (today)")
+uniq = int(df["ticker"].nunique()) if not df.empty else 0
+kpi_row([
+    {"label": "Alerts Today", "value": f"{len(df):,}"},
+    {"label": "Unique Tickers", "value": f"{uniq:,}"},
+    {"label": "Price Band", "value": "$0.10–$5.00"},
+    {"label": "Target", "value": "$10M / 10m"},
+])
+
+section("Low-Price Alerts", hint="today · newest first")
 if df.empty:
     st.info("No low-price target alerts yet today.")
 else:
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-st.caption("Auto-refreshing…")
+st.divider()
+clock_caption(now)
 time.sleep(int(refresh))
 st.rerun()

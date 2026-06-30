@@ -1,0 +1,18 @@
+# Stock Scanner — modern dark "trading terminal" theme
+[theme]
+base = "dark"
+primaryColor = "#22d3a5"
+backgroundColor = "#0b0f17"
+secondaryBackgroundColor = "#121826"
+textColor = "#e6edf3"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = true
+
+[ui]
+hideTopBar = false
+
+[server]
+runOnSave = true

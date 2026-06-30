@@ -21,20 +21,30 @@ import streamlit as st
 from auth import require_login, logout_button
 from db import pg_conn
 
+try:
+    from ui import apply_theme, page_header, section
+except ModuleNotFoundError:
+    from app.ui import apply_theme, page_header, section
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Page chrome
 # ─────────────────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Model vs Signal", layout="wide")
+apply_theme(page_title="Model vs Signal", icon="⚔️")
 require_login()
-st.title("🤖 Model vs Signal — comparison")
-st.caption("Showing **episode-start rows only** — the first RSI<30 bar per ticker per oversold episode. "
-           "**Note:** `score_up` shown here is from predict_service (background scorer). "
-           "The actual buy decision uses the inline scorer in temp.py which may give slightly different scores "
-           "due to different bar timing. Both use the same model file.")
+page_header(
+    "Model vs Signal",
+    subtitle="Episode-start rows only — the first RSI&lt;30 bar per ticker per oversold "
+             "episode. <code>score_up</code> here comes from the background scorer; the "
+             "live buy decision uses the inline scorer (same model, slightly different timing).",
+    eyebrow="PAGE 11 · ANALYTICS",
+    status=None,
+)
+with st.sidebar:
+    logout_button()
 
 # ── Head-to-head: all available model versions summarised ─────────────────────
-st.subheader("⚔️ Model head-to-head")
+section("Model Head-to-Head", hint="all versions")
 
 with pg_conn() as con:
     try:

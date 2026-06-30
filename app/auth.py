@@ -91,7 +91,15 @@ def logout_button():
 
 
 def login_ui():
-    st.title("Login")
+    # Apply the shared theme so the login screen matches the rest of the app.
+    try:
+        try:
+            from ui import apply_theme
+        except ModuleNotFoundError:
+            from app.ui import apply_theme
+        apply_theme(page_title="Stock Scanner — Sign in", icon="📈")
+    except Exception:
+        pass
 
     # Fresh cookie manager for this run; wait until it has loaded.
     cookies = _new_cookies()
@@ -104,12 +112,26 @@ def login_ui():
 
     sb = supabase_client()
 
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
+    # Centered, branded login card.
+    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div class="brand">
+          <div class="logo">📈</div>
+          <div class="name">Stock<span>Scanner</span></div>
+        </div>
+        <div style="text-align:center;color:#8b97a7;font-size:13.5px;margin:-2px 0 18px;">
+          Real-time scanners, alerts & automated trading
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Sign in"):
+    with st.container(border=True):
+        email = st.text_input("Email", placeholder="you@example.com")
+        password = st.text_input("Password", type="password", placeholder="••••••••")
+
+        if st.button("Sign in", type="primary", use_container_width=True):
             try:
                 res = sb.auth.sign_in_with_password({"email": email, "password": password})
                 _persist_session(res.user, res.session)
@@ -118,10 +140,16 @@ def login_ui():
             except Exception as e:
                 st.error(f"Login failed: {e}")
 
-    with col2:
-        if st.button("Create account"):
+        if st.button("Create account", use_container_width=True):
             try:
                 sb.auth.sign_up({"email": email, "password": password})
                 st.success("Signup submitted. Check your email if confirmation is enabled.")
             except Exception as e:
                 st.error(f"Signup failed: {e}")
+
+    st.markdown(
+        '<div style="text-align:center;color:#5d6776;font-size:12px;margin-top:14px;">'
+        '🔒 Secured by Supabase Auth</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('</div>', unsafe_allow_html=True)

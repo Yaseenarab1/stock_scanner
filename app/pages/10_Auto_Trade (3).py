@@ -12,16 +12,24 @@ from app.auth import require_login, logout_button
 from app.db import pg_conn
 from app.auto_trade_crypto import encrypt_str, decrypt_str, get_fernet_key_from_streamlit_secrets
 
+try:
+    from ui import apply_theme, page_header
+except ModuleNotFoundError:
+    from app.ui import apply_theme, page_header
 
-st.set_page_config(page_title="Auto-trade (Webull)", layout="wide")
+
+apply_theme(page_title="Auto-trade (Webull)", icon="🤖")
 require_login()
 
-st.title("🤖 Auto-trade (Webull)")
-st.caption(
-    "Trades fire only when the **ML model** scores an episode-start signal above its "
-    "threshold. Requires worker env `AUTO_TRADE_FERNET_KEY` matching this app's secret."
+page_header(
+    "Auto-Trade · Webull",
+    subtitle="Trades fire only when the ML model scores an episode-start signal above "
+             "its threshold. Requires worker env <code>AUTO_TRADE_FERNET_KEY</code> "
+             "matching this app's secret.",
+    eyebrow="PAGE 10 · AUTOMATION",
 )
-logout_button()
+with st.sidebar:
+    logout_button()
 
 user = st.session_state.auth_user
 user_id = user["id"]

@@ -1,17 +1,64 @@
 import streamlit as st
 from auth import login_ui, require_login, logout_button
 
-st.set_page_config(page_title="Stock Scanner", layout="wide")
+try:
+    from ui import apply_theme, page_header, section, pill
+except ModuleNotFoundError:
+    from app.ui import apply_theme, page_header, section, pill
 
-# If not logged in, show login and stop.
+apply_theme(page_title="Stock Scanner", icon="📈")
+
+# If not logged in, show the (now glossy) login screen and stop.
 if st.session_state.get("auth_user") is None:
     login_ui()
     st.stop()
 
 require_login()
 
-st.title("✅ Logged in")
-st.write(f"User: {st.session_state.auth_user['email']}")
+email = st.session_state.auth_user["email"]
 
-logout_button()
-st.info("Use the left sidebar pages: Scanner, Buy Watcher, Market Alerts.")
+page_header(
+    "Command Center",
+    subtitle="Your real-time trading cockpit — scanners, alerts, watchlists, "
+             "model analytics and automated execution, all in one place.",
+    eyebrow="DASHBOARD",
+)
+
+st.markdown(f'Signed in as &nbsp; {pill(email, "live")}', unsafe_allow_html=True)
+
+with st.sidebar:
+    st.markdown("### 📈 Stock Scanner")
+    st.caption("Navigate using the pages above.")
+    st.divider()
+    logout_button()
+
+# ── Quick navigation cards ────────────────────────────────────────────────────
+section("Workspaces", hint="jump straight in")
+
+NAV = [
+    ("⚡", "Scanner", "Pre-market qualified movers", "app/pages/1_Scanner.py"),
+    ("🎯", "Buy Watcher", "Watchlist · signals · charts", "app/pages/2_Buy_Watcher.py"),
+    ("🔔", "Market Alerts", "Live RTH volume alerts", "app/pages/3_Market_Alerts.py"),
+    ("🪙", "Low-Price", "Sub-$5 microcap screener", "app/pages/4_small_stocks_screanner.py"),
+    ("🤖", "Auto-Trade", "Webull automation", "app/pages/10_Auto_Trade.py"),
+    ("👤", "Profile", "Notifications & account", "app/pages/9_Profile.py"),
+]
+
+cols = st.columns(3)
+for i, (icon, title, desc, target) in enumerate(NAV):
+    with cols[i % 3]:
+        st.markdown(
+            f"""
+            <div class="kpi" style="min-height:104px;">
+              <div style="font-size:24px;">{icon}</div>
+              <div class="value" style="font-size:18px;font-family:'Inter';font-weight:700;margin-top:4px;">{title}</div>
+              <div class="label" style="text-transform:none;letter-spacing:0;margin-top:2px;">{desc}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button(f"Open {title}", key=f"nav_{i}", use_container_width=True):
+            st.switch_page(target)
+
+st.divider()
+st.caption("Tip: use the left sidebar to switch pages at any time.")
