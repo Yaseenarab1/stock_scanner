@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
@@ -90,6 +91,47 @@ def logout_button():
         st.rerun()
 
 
+def _inject_login_autofill_hints():
+    """Mark the email/password inputs as a real sign-in form.
+
+    Streamlit's text inputs render without the ``name`` / ``autocomplete``
+    attributes that browsers and password managers use to recognise a login,
+    so they offer to *create* a new account instead of autofilling a saved one.
+    This runs in the component iframe and reaches up to the parent document to
+    set the canonical attributes (``autocomplete="username"`` /
+    ``"current-password"``). It re-applies a few times because Streamlit
+    re-renders the inputs after mount.
+    """
+    components.html(
+        """
+        <script>
+        function tagLoginInputs() {
+          try {
+            const doc = window.parent.document;
+            const email = doc.querySelector('input[aria-label="Email"]');
+            const pass  = doc.querySelector('input[aria-label="Password"]');
+            if (email) {
+              email.setAttribute('autocomplete', 'username');
+              email.setAttribute('name', 'username');
+              email.setAttribute('inputmode', 'email');
+              email.setAttribute('autocapitalize', 'off');
+              email.setAttribute('autocorrect', 'off');
+            }
+            if (pass) {
+              pass.setAttribute('autocomplete', 'current-password');
+              pass.setAttribute('name', 'password');
+            }
+          } catch (e) { /* iframe sandboxed — autofill hints unavailable */ }
+        }
+        tagLoginInputs();
+        [120, 400, 900, 1800].forEach(t => setTimeout(tagLoginInputs, t));
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def login_ui():
     # Apply the shared theme so the login screen matches the rest of the app.
     try:
@@ -128,8 +170,19 @@ def login_ui():
     )
 
     with st.container(border=True):
-        email = st.text_input("Email", placeholder="you@example.com")
-        password = st.text_input("Password", type="password", placeholder="••••••••")
+        email = st.text_input(
+            "Email", placeholder="you@example.com", key="login_email",
+        )
+        password = st.text_input(
+            "Password", type="password", placeholder="••••••••",
+            key="login_password",
+        )
+
+        # Tell the browser / password manager this is a SIGN-IN form so it
+        # offers to autofill saved credentials instead of creating a new
+        # account. Streamlit doesn't expose name/autocomplete on older
+        # versions, so we also set them directly on the rendered inputs.
+        _inject_login_autofill_hints()
 
         if st.button("Sign in", type="primary", use_container_width=True):
             try:
@@ -140,12 +193,13 @@ def login_ui():
             except Exception as e:
                 st.error(f"Login failed: {e}")
 
-        if st.button("Create account", use_container_width=True):
-            try:
-                sb.auth.sign_up({"email": email, "password": password})
-                st.success("Signup submitted. Check your email if confirmation is enabled.")
-            except Exception as e:
-                st.error(f"Signup failed: {e}")
+        with st.expander("New here? Create an account"):
+            if st.button("Create account", use_container_width=True):
+                try:
+                    sb.auth.sign_up({"email": email, "password": password})
+                    st.success("Signup submitted. Check your email if confirmation is enabled.")
+                except Exception as e:
+                    st.error(f"Signup failed: {e}")
 
     st.markdown(
         '<div style="text-align:center;color:#5d6776;font-size:12px;margin-top:14px;">'
