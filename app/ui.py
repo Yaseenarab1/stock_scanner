@@ -240,7 +240,11 @@ def apply_theme(page_title: str = "Stock Scanner", icon: str = "📈", layout: s
     except Exception:
         pass
     # Always (re)inject CSS: Streamlit clears markup between reruns.
-    st.markdown(_CSS, unsafe_allow_html=True)
+    # Use st.html (not st.markdown): it injects the <style> block verbatim
+    # instead of routing it through the Markdown processor, which can escape
+    # indented HTML into a code block or mangle CSS tokens — the failure mode
+    # where the raw stylesheet shows up as text on the page.
+    st.html(_CSS)
     st.session_state[_THEME_FLAG] = True
 
 
@@ -256,7 +260,7 @@ def page_header(title: str, subtitle: str = "", eyebrow: str = "STOCK SCANNER",
         }
         pill = pill_map.get(status, "")
     sub = f'<div class="sub">{subtitle}</div>' if subtitle else ""
-    st.markdown(
+    st.html(
         f"""
         <div class="app-hero">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
@@ -268,17 +272,15 @@ def page_header(title: str, subtitle: str = "", eyebrow: str = "STOCK SCANNER",
             <div>{pill}</div>
           </div>
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
 def section(title: str, hint: str = "") -> None:
     """A clean section divider with an accent bar."""
     hint_html = f'<div class="hint">{hint}</div>' if hint else ""
-    st.markdown(
-        f'<div class="section-h"><div class="bar"></div><div class="t">{title}</div>{hint_html}</div>',
-        unsafe_allow_html=True,
+    st.html(
+        f'<div class="section-h"><div class="bar"></div><div class="t">{title}</div>{hint_html}</div>'
     )
 
 
@@ -296,7 +298,7 @@ def kpi_row(items: Sequence[dict]) -> None:
         _kpi_html(i["label"], i["value"], i.get("delta"), i.get("trend", "flat"))
         for i in items
     )
-    st.markdown(f'<div class="kpi-grid">{cards}</div>', unsafe_allow_html=True)
+    st.html(f'<div class="kpi-grid">{cards}</div>')
 
 
 def pill(text: str, kind: str = "muted") -> str:
@@ -356,9 +358,8 @@ def auto_column_config(df) -> dict:
 def clock_caption(now: datetime | None = None) -> None:
     """A small market-clock caption (ET) with last-updated time."""
     now = now or datetime.now(ET)
-    st.markdown(
+    st.html(
         f'<div style="color:{MUTED};font-size:12.5px;margin-top:-6px;">'
         f'🕒 {now.strftime("%a %b %d, %Y · %H:%M:%S")} ET &nbsp;·&nbsp; '
-        f'auto-refreshing</div>',
-        unsafe_allow_html=True,
+        f'auto-refreshing</div>'
     )
