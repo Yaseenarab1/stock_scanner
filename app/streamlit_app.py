@@ -24,7 +24,7 @@ page_header(
     eyebrow="DASHBOARD",
 )
 
-st.markdown(f'Signed in as &nbsp; {pill(email, "live")}', unsafe_allow_html=True)
+st.html(f'<div>Signed in as &nbsp; {pill(email, "live")}</div>')
 
 with st.sidebar:
     st.markdown("### 📈 Stock Scanner")
@@ -48,15 +48,14 @@ NAV = [
 cols = st.columns(3)
 for i, (icon, title, desc, target) in enumerate(NAV):
     with cols[i % 3]:
-        st.markdown(
+        st.html(
             f"""
             <div class="kpi" style="min-height:104px;">
               <div style="font-size:24px;">{icon}</div>
               <div class="value" style="font-size:18px;font-family:'Inter';font-weight:700;margin-top:4px;">{title}</div>
               <div class="label" style="text-transform:none;letter-spacing:0;margin-top:2px;">{desc}</div>
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
         if st.button(f"Open {title}", key=f"nav_{i}", use_container_width=True):
             try:

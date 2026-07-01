@@ -23,7 +23,7 @@ user = st.session_state.auth_user
 user_id = user["id"]
 email = user.get("email") or ""
 
-st.markdown(f'Signed in as &nbsp; {pill(email, "live")}', unsafe_allow_html=True)
+st.html(f'<div>Signed in as &nbsp; {pill(email, "live")}</div>')
 with st.sidebar:
     logout_button()
 

@@ -155,8 +155,11 @@ def login_ui():
     sb = supabase_client()
 
     # Centered, branded login card.
-    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
-    st.markdown(
+    # Use st.html (not st.markdown) so the raw HTML is injected verbatim
+    # instead of being run through the Markdown parser, which can escape it
+    # and render the markup as visible text.
+    st.html('<div class="login-wrap">')
+    st.html(
         """
         <div class="brand">
           <div class="logo">📈</div>
@@ -165,8 +168,7 @@ def login_ui():
         <div style="text-align:center;color:#8b97a7;font-size:13.5px;margin:-2px 0 18px;">
           Real-time scanners, alerts & automated trading
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     with st.container(border=True):
@@ -201,9 +203,8 @@ def login_ui():
                 except Exception as e:
                     st.error(f"Signup failed: {e}")
 
-    st.markdown(
+    st.html(
         '<div style="text-align:center;color:#5d6776;font-size:12px;margin-top:14px;">'
-        '🔒 Secured by Supabase Auth</div>',
-        unsafe_allow_html=True,
+        '🔒 Secured by Supabase Auth</div>'
     )
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.html('</div>')
