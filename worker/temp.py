@@ -184,15 +184,24 @@ def get_day_volume(s):
         return 0.0
 
 def fetch_exact_8am_baseline(ticker: str, day_et: datetime) -> float | None:
+    # Baseline = the open of the FIRST minute bar at/after 8:00am ET.
+    # The old code queried only the 8:00–8:01 minute, so any ticker without a
+    # trade in that exact minute returned None and got its baseline pinned to a
+    # mid-window price — making a real 10% gain impossible for the rest of the
+    # day. Widening to [8:00, now] and taking the earliest bar makes this
+    # essentially always resolve for a name that's active enough to be scanned.
     start = day_et.replace(hour=8, minute=0, second=0, microsecond=0)
-    end = day_et.replace(hour=8, minute=1, second=0, microsecond=0)
+    end = day_et
+    if end <= start:
+        return None
     try:
-        aggs = client.get_aggs(ticker=ticker, multiplier=1, timespan="minute", from_=start, to=end, limit=5)
+        aggs = client.get_aggs(ticker=ticker, multiplier=1, timespan="minute",
+                               from_=start, to=end, limit=500)
     except Exception:
         return None
     if not aggs:
         return None
-    bar = aggs[0]
+    bar = aggs[0]  # get_aggs returns bars ascending by time → earliest at/after 8:00
     o = getattr(bar, "open", None) or getattr(bar, "o", None)
     c = getattr(bar, "close", None) or getattr(bar, "c", None)
     try:
@@ -761,11 +770,19 @@ def section_page1(state: dict):
             info["current_price"] = price
             info["cum_vol"] = cum_vol
 
-            # baseline once
+            # baseline once (retry until it resolves)
             if info["baseline_8am"] is None:
-                base = fetch_exact_8am_baseline(ticker, now)
-                info["baseline_8am"] = base if (base and base > 0) else price
+                fetched = fetch_exact_8am_baseline(ticker, now)
+                if fetched and fetched > 0:
+                    info["baseline_8am"] = fetched
+                # else: leave baseline None so the NEXT cycle retries. Do NOT pin
+                # it to the current mid-window price — that permanently anchors
+                # gain near 0 and locks the ticker out of the 10% qualify gate
+                # for the rest of the day.
 
+            # Working baseline for THIS cycle's gain math only. If the baseline
+            # hasn't resolved yet we use the current price (gain ~0 this cycle),
+            # but we do not persist that, so a later cycle can still anchor it.
             base = info["baseline_8am"] or price
             gain_now = (minute_high - base) / base if base > 0 else 0.0
             info["max_gain_window"] = max(info["max_gain_window"], gain_now)
