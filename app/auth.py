@@ -3,6 +3,21 @@ import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
+
+import streamlit as st
+
+# streamlit-cookies-manager is unmaintained and still calls the removed st.cache API
+if not hasattr(st, "cache"):
+    def _legacy_cache(func=None, **_kwargs):   # swallow allow_output_mutation etc.
+        def wrap(f):
+            return st.cache_resource(f)
+        return wrap(func) if callable(func) else wrap
+    st.cache = _legacy_cache
+
+import streamlit.components.v1 as components
+from supabase import create_client
+from streamlit_cookies_manager import EncryptedCookieManager
+
 # Key under which we keep the Supabase refresh token inside the (encrypted) cookie.
 _REFRESH_KEY = "sb_refresh_token"
 
