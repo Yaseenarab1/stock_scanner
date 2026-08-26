@@ -7,3 +7,4 @@ supabase
 psycopg[binary]
 streamlit-cookies-manager
 streamlit-autorefresh
+streamlit==1.44.1
